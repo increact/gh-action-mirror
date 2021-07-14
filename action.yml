@@ -1,0 +1,48 @@
+name: "Mirroring Repository"
+description: "Mirror a repository to another repository on GitHub, GitLab, BitBucket, AWS CodeCommit, etc."
+branding:
+  icon: "archive"
+  color: "blue"
+inputs:
+  ssh_private_key:
+    description: "SSH private key for ssh connection to the target repository"
+    required: false
+  target_repo_url:
+    description: "Target url"
+    required: true
+  ssh_username:
+    description: "Username for ssh connection"
+    required: false
+    default: "git"
+  path:
+    description: "Code mirror folder path"
+    required: true
+  branches:
+    description: "Origin branch"
+    required: false
+    default: "develop"
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        mkdir -p ~/.ssh
+        echo "${{inputs.ssh_private_key}}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        export GIT_SSH_COMMAND="ssh -v -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -l ${{inputs.ssh_username}}"
+        cd "${{inputs.path}}"
+        git remote remove mirror || echo "mirror removed"
+        git fetch --unshallow
+        IFS=', ' read -r -a array <<< "${{inputs.branches}}"
+        for element in "${array[@]}"
+        do
+          git checkout "$element"
+        done
+        git remote add mirror "${{inputs.target_repo_url}}"
+        for element in "${array[@]}"
+        do
+          git checkout "$element"
+          git pull
+          git push mirror "$element"
+        done
+        git remote remove mirror
+      shell: bash
